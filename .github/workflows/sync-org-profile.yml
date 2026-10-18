@@ -1,0 +1,45 @@
+name: Sync org profile README
+
+# Copies README.md into SurfStat/.github as profile/README.md, which GitHub
+# renders on https://github.com/SurfStat. Needs a secret ORG_PROFILE_TOKEN: a
+# fine-grained PAT with Contents: read/write on the SurfStat/.github repo.
+
+on:
+  push:
+    branches: [main]
+    paths: [README.md]
+  workflow_dispatch:
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/checkout@v4
+        with:
+          repository: SurfStat/.github
+          token: ${{ secrets.ORG_PROFILE_TOKEN }}
+          path: org
+
+      - name: Copy README as the org profile
+        # Two rewrites on the way over. The status line points back at this repo
+        # instead of saying "this repo". And every repo-relative link becomes an
+        # absolute URL — a link like ./install.ps1 resolves against SurfStat/.github
+        # once the file lands there, which is a 404.
+        run: |
+          mkdir -p org/profile
+          sed -e 's#^> This repo is the getting-started guide;#> The [getting-started repo](https://github.com/SurfStat/getting-started) holds the installer and guide;#' \
+              -e 's#\](\./#](https://github.com/SurfStat/getting-started/blob/main/#g' \
+              -e 's#\](images/#](https://raw.githubusercontent.com/SurfStat/getting-started/main/images/#g' \
+            README.md > org/profile/README.md
+
+      - name: Commit and push if changed
+        working-directory: org
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add profile/README.md
+          git diff --cached --quiet && exit 0
+          git commit -m "Sync profile README from getting-started"
+          git push

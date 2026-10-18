@@ -1,0 +1,95 @@
+# syntax=docker/dockerfile:1
+#
+# surfstat-base — the permanent, slow-moving foundation of the SurfStat appliance.
+#
+# One image that carries everything SurfStat needs but rarely changes: Apache
+# Superset (gunicorn, synchronous — no Redis, no Celery), an internal PostgreSQL
+# for its metadata, nginx, and supervisord tying them together. The product image
+# (docker/Dockerfile.surfstat) is built FROM this and only adds the fast-moving
+# parts — the Go API and the compiled Vue panel — so day-to-day releases don't
+# rebuild Superset or reinstall its drivers.
+#
+# Built on the official apache/superset image (Superset is already installed);
+# this repo only adds the packaging (supervisor/postgres/nginx + scripts)
+# and the extra SQLAlchemy drivers the SurfStat analytics sources need.
+#
+# Build (the Makefile drives it):
+#   make base-build                      # host arch, as surfstat-base:local
+#   make base-release BASE_VERSION=v2    # multi-arch, pushed to Docker Hub
+#
+ARG SUPERSET_TAG=6.1.0
+FROM apache/superset:${SUPERSET_TAG}
+
+USER root
+ENV DEBIAN_FRONTEND=noninteractive
+
+# --- SQLAlchemy drivers ---
+# psycopg2 is the Postgres driver Superset needs for its OWN metadata DB (the
+# apache/superset image does NOT bundle it) plus any analytics Postgres — the
+# SurfStat stage/issues tables live in Postgres. ClickHouse + MySQL cover other
+# SurfStat analytics sources. Flask-Cors backs the ENABLE_CORS in superset_config;
+# 6.x bundles it, but it stays listed so the base does not depend on that. All
+# ship as wheels, so no build toolchain.
+#
+# MUST go through uv INTO /app/.venv: since Superset 5 the image runs from a uv
+# virtualenv, and a bare `pip` resolves to /usr/local/bin/pip — a DIFFERENT
+# interpreter (/usr/local/bin/python3.10). That install would succeed and still
+# leave Superset unable to import psycopg2.
+RUN uv pip install --python /app/.venv/bin/python --no-cache-dir \
+        psycopg2-binary Flask-Cors clickhouse-connect PyMySQL
+
+# --- bundled runtime services ---
+RUN apt-get update -y -q && \
+    apt-get install -y -q --no-install-recommends \
+        postgresql postgresql-contrib \
+        nginx \
+        supervisor \
+        openssl \
+        curl && \
+    rm -rf /var/lib/apt/lists/* && \
+    rm -f /etc/nginx/sites-enabled/default
+
+# --- Superset config (loaded via SUPERSET_CONFIG_PATH) ---
+# surfstat_control.py sits alongside it on PYTHONPATH; superset_config imports it
+# from FLASK_APP_MUTATOR to mount the admin-only SurfStat control blueprint.
+COPY base/superset_config.py base/surfstat_control.py /app/pythonpath/
+
+# --- packaging from this repo ---
+COPY base/supervisord.conf /etc/supervisor/supervisord.conf
+COPY base/nginx-superset.conf /etc/nginx/conf.d/superset.conf
+COPY base/entrypoint.sh base/bootstrap.sh base/run-postgres.sh base/run-gate.sh /opt/superset/
+
+# The include dir supervisord reads (base/supervisord.conf points here) so images
+# built FROM this one can drop extra programs without rewriting the config.
+RUN mkdir -p /opt/superset/tls /var/lib/superset /etc/supervisor/conf.d && \
+    chmod +x /opt/superset/*.sh
+
+# --- shared configuration (override any of these at `docker run -e ...`) ---
+ENV SUPERSET_CONFIG_PATH=/app/pythonpath/superset_config.py \
+    PYTHONPATH=/app/pythonpath \
+    DB_HOST=127.0.0.1 \
+    DB_PORT=5432 \
+    DB_NAME=superset \
+    DB_USER=superset \
+    DB_PASS=superset \
+    PUBLIC_HOST=localhost \
+    ADMIN_USER=admin \
+    ADMIN_PASS=admin \
+    ADMIN_EMAIL=admin@surfstat.local \
+    GUNICORN_WORKERS=4 \
+    LOAD_EXAMPLES=false \
+    PG_AUTOSTART=true \
+    PGDATA=/var/lib/superset/pgdata
+# NOTE: SUPERSET_SECRET_KEY is intentionally NOT set here. Baking a key into ENV
+# persists it in the image (docker inspect / layer history) and trips the
+# SecretsUsedInArgOrEnv linter. Provide it at runtime: `docker run -e SUPERSET_SECRET_KEY=...`
+# (openssl rand -base64 42). superset_config.py falls back to an insecure default
+# for local dev, and entrypoint.sh warns when it is unset/default.
+
+# Persist the internal metadata DB + generated certs across restarts.
+VOLUME ["/var/lib/superset"]
+
+# 443 = TLS (nginx) · 80 = redirect · 8088 = Superset HTTP (handy in dev/compose)
+EXPOSE 443/tcp 80/tcp 8088/tcp
+
+ENTRYPOINT ["/opt/superset/entrypoint.sh"]

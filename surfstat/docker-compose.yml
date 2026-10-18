@@ -1,0 +1,137 @@
+# SurfStat — the whole appliance in one container.
+#
+# One image (mehdishokohi/surfstat) bakes the panel (Vue), the API (Go), the BI
+# engine (Superset, synchronous — no Redis/Celery), the database (PostgreSQL) and
+# nginx behind a single origin. There is nothing to build here — the installer
+# pulls the published image. One volume holds all state: the Postgres cluster with
+# BOTH the surfstat and superset databases, Superset's filesystem cache, and the
+# self-signed cert.
+#
+# SurfStat runs as a FloMorphic plugin, so this stack joins the shared external
+# `inflow_net` network to reach FloMorphic (flomorphic:8025) and Infra (NATS on
+# :4222, the licence API on :8022) by name. install.sh creates that network and captures
+# FloMorphic's shared secret for you; by hand:
+#
+#   docker network create inflow_net        # if it doesn't exist yet
+#   cp .env.example .env                     # set SUPERSET_SECRET_KEY + the FloMorphic bits
+#   docker compose up -d
+#   open http://localhost:8080
+#
+name: surfstat
+
+services:
+  surfstat:
+    image: ${SURFSTAT_IMAGE:-mehdishokohi/surfstat:latest}
+    container_name: surfstat
+    restart: unless-stopped
+    # Real PID 1 for a multi-process container (supervisord fans out to postgres,
+    # superset, the API and nginx): tini reaps zombies and forwards signals so
+    # `docker stop` reaches every child.
+    init: true
+    stop_grace_period: 20s
+    environment:
+      # ── identity / TLS ────────────────────────────────────────────────────
+      # Hostname this instance is reached at (baked into the self-signed cert SAN
+      # Superset uses on :443 inside the container).
+      PUBLIC_HOST: ${PUBLIC_HOST:-localhost}
+
+      # ── Superset ──────────────────────────────────────────────────────────
+      # REQUIRED — a real random key (openssl rand -base64 42). The installer
+      # generates one. Rotating it invalidates existing Superset sessions.
+      SUPERSET_SECRET_KEY: ${SUPERSET_SECRET_KEY:?set SUPERSET_SECRET_KEY in .env}
+      # The Superset admin, created on first boot. The API self-configures its
+      # Superset connection from these same credentials — no one types them in.
+      ADMIN_USER: ${ADMIN_USER:-admin}
+      ADMIN_PASS: ${ADMIN_PASS:-admin}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@surfstat.local}
+      # Load Superset's example datasets on first boot (needs internet). Off by
+      # default; also loadable on demand from the panel's Settings → Demo data.
+      LOAD_EXAMPLES: ${LOAD_EXAMPLES:-false}
+
+      # ── SurfStat backend ───────────────────────────────────────────────────
+      # Keys the encryption of stored secrets — set a real value in production.
+      SURFSTAT_APP_SECRET: ${SURFSTAT_APP_SECRET:?set SURFSTAT_APP_SECRET in .env}
+      # Password for the internal `surfstat` Postgres role (created on first boot).
+      SURFSTAT_DB_PASS: ${SURFSTAT_DB_PASS:-surfstat}
+
+      # ── Access control ───────────────────────────────────────────────────
+      # The first administrator, created ONLY when the users table is empty.
+      # Leaving the password unset is the better choice: one is generated and
+      # written to the container log once, and the account is flagged
+      # must-change-password, so the credential in the log stops working the
+      # moment someone signs in. An appliance that already has users ignores
+      # these entirely — leaving them set across a restart cannot resurrect a
+      # deleted account or reset a changed password.
+      SURFSTAT_ADMIN_USER: ${SURFSTAT_ADMIN_USER:-admin}
+      SURFSTAT_ADMIN_PASSWORD: ${SURFSTAT_ADMIN_PASSWORD:-}
+      SURFSTAT_ADMIN_EMAIL: ${SURFSTAT_ADMIN_EMAIL:-}
+      # The session cookie is marked Secure by default, so browsers only send
+      # it over HTTPS. nginx inside the container serves the panel over plain
+      # HTTP on the published port, so a localhost trial needs this off; put a
+      # TLS terminator in front and set it back to true for anything real.
+      SURFSTAT_COOKIE_SECURE: ${SURFSTAT_COOKIE_SECURE:-false}
+
+      # ── FloMorphic wiring (SurfStat runs as a FloMorphic plugin) ───────────
+      # The API base as reached over inflow_net, and the shared secret (matches
+      # FloMorphic's API_JWT_SECRET / INFLOW_INFRA_JWT_SECRET). install.sh fills
+      # these in from the FloMorphic instance.
+      #
+      # These three are only the DEFAULT: whatever is saved in the panel (Settings
+      # -> Connect FloMorphic -> FloMorphic API) is stored in the database, wins
+      # over them, and survives a container recreate. So leaving them empty is fine
+      # — "Connect FloMorphic" then asks for the address instead of staying dark.
+      #
+      # Note that changing them here needs `docker compose up -d` (a recreate):
+      # `docker compose restart` reuses the container's existing environment, and
+      # these values are read once at startup.
+      FLOMORPHIC_URL: ${FLOMORPHIC_URL:-}
+      FLOMORPHIC_JWT_SECRET: ${FLOMORPHIC_JWT_SECRET:-}
+      # Infra host for NATS (:4222) + the licence API (:8022). On inflow_net this is the
+      # Infra container name; for an infra running on the host it is the Docker
+      # gateway, never localhost (which, in here, is this container).
+      INFRA_HOST: ${INFRA_HOST:-inflow-infra}
+
+    volumes:
+      # All persistent state: the Postgres cluster (surfstat + superset DBs),
+      # Superset's filesystem cache, the generated TLS cert, and control state.
+      - surfstat-state:/var/lib/superset
+
+    ports:
+      # The SurfStat panel — everything the browser needs, via nginx.
+      - "${SURFSTAT_PORT:-8080}:80"
+      # Superset's own UI, published directly for operators/admins. Defaults to
+      # 8090 so it never collides with FloMorphic's canvas on 8088.
+      - "${SUPERSET_PORT:-8090}:8088"
+
+    networks:
+      - inflow_net
+
+    # Make the host reachable by name from inside the container. On Linux
+    # `host.docker.internal` is NOT created automatically — this line injects it
+    # (resolves to the Docker host gateway). Needed when FloMorphic / Infra run on
+    # the host rather than as containers on inflow_net. Then set, e.g.:
+    #   FLOMORPHIC_URL=http://host.docker.internal:8025
+    #   INFRA_HOST=host.docker.internal
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+    healthcheck:
+      # The panel nginx proxies /healthz to the Go API; green once the API is up.
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1/healthz"]
+      # First boot migrates the Superset metadata DB and creates the admin before
+      # the API starts, so give it room.
+      start_period: 120s
+      start_interval: 5s
+      interval: 30s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  surfstat-state:
+
+networks:
+  # Shared, externally-managed network (fixed name, no compose project prefix) so
+  # this stack lands on the same network as FloMorphic and Infra:
+  #   docker network create inflow_net
+  inflow_net:
+    external: true
