@@ -2,9 +2,10 @@
 
 # SurfStat
 
-### Regulatory control, authored and evidenced
+### An authoring substrate for governed data
 
-*A regulated process is a graph the compliance expert draws. The record of every run is the evidence.*
+*One fixed machine — a register, a graph engine and an execution record — that an organization bends
+to its own structure by authoring rather than by shipping.*
 
 [Product page](https://inflowenger.com/surfstat) ·
 [FloMorphic](https://inflowenger.com/flomorphic)
@@ -168,6 +169,11 @@ actually runs. Editing it changes what runs tomorrow. And because the platform k
 between steps, the audit trail is not a module anyone built — it is what executing the process
 produces.
 
+Neither inversion is specific to regulation. What the schema fixes is a register, a worked queue and
+the journey between them; what an organization supplies is its own vocabulary, its own
+classifications and its own diagrams — rows, every one of them. Regulatory control is the case this
+was built for and the case the packages ship for, but the machine underneath does not know the word.
+
 All business logic lives in [FloMorphic](https://inflowenger.com/flomorphic) workflows; SurfStat is
 the product around them — the register, the queue, the evidence store and the access model that make
 those workflows a regulated deployment rather than a set of diagrams.
@@ -192,6 +198,23 @@ One ordering rule carries the whole discipline: **a check goes to the cheapest s
 it.** Deterministic first, then a calibrated choice from a closed list, then open-ended reading, and
 a person only where accountability has to be personal. A model is never used to pick between five
 known answers, and never used for arithmetic.
+
+## What it carries
+
+**Regulatory control, authored and evidenced.** *A regulated process is a graph the compliance expert
+draws. The record of every run is the evidence.*
+
+**Supervisory returns, a thousand branches wide.** *Every return has its own columns and its own
+reporting period. The entity, the period and the batch are columns; everything particular to a
+return is vocabulary — so a new return is a term set and a diagram rather than a migration. The same
+install runs in a single branch, computing the figures it sends upward.*
+
+**Risk, fraud, trace.** *One records-to-cases journey with a different vocabulary stamped on it. The
+concept an organization cares about is a tag axis, and the intermediate step it calls its own —
+exception, alert, referral — is a term and a saved view.*
+
+**Evidence that never leaves.** *One container, one Postgres, self-hosted, no phone-home — with
+collection by plugin in each branch reporting to a core the data is required to stay in.*
 
 ## The data model: Records → Cases
 
