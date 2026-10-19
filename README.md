@@ -183,9 +183,9 @@ Judgment — FloMorphic workflows
   ALL business logic lives here.
         ↓
 The product — SurfStat
-  Intake, exceptions, cases, the activity log, packages, dashboards — and the
-  access model, the clock and the retention rules the platform deliberately
-  does not provide.
+  Records, cases, the activity log, packages, dashboards — and the access
+  model, the clock and the retention rules the platform deliberately does
+  not provide.
 ```
 
 One ordering rule carries the whole discipline: **a check goes to the cheapest step that can carry
@@ -193,36 +193,47 @@ it.** Deterministic first, then a calibrated choice from a closed list, then ope
 a person only where accountability has to be personal. A model is never used to pick between five
 known answers, and never used for arithmetic.
 
-## The data model: Intake → Exceptions → Cases
+## The data model: Records → Cases
 
-Six tables carry the model, with FloMorphic doing the judgment between them.
+Five tables carry the model, with FloMorphic doing the judgment between them.
 
 | Table | What it holds |
 | --- | --- |
-| **Intake** | The un-triaged inbox — extracts, feed results, uploads and probe output as they land, including the probes that returned nothing and the attempts that timed out. A control routes each row: *pending*, *promoted*, *held* or *dropped*. |
-| **Exceptions** | What a control concluded but nobody has validated yet: a severity, a confidence, the obligation and entity it points at, and the evidence behind it. |
-| **Cases** | The axis where work actually moves: remediation items, investigations, breach assessments — with an owner, a due date and a history. |
-| **Activities** | The history of every row above: each control run with what it read, what it concluded and which path it took. This is the audit trail, and the screen you put in front of a supervisor. |
+| **Records** | The raw side — extracts, returns, feed results, uploads and probe output as they land, including the probes that returned nothing and the attempts that timed out. A control routes each row: *pending*, *promoted*, *held* or *dropped*, and a row may stay here for good and still be stamped, scored and reported on. |
+| **Cases** | The worked side, where work actually moves: remediation items, investigations, breach assessments — with an owner, a due date and a journey. |
+| **Activities** | The journey of every row above: each control run with what it read, what it concluded and which path it took, interleaved with what people said about it. This is the audit trail, and it is also the main content of a record's own page — a governance record is read as a story, not as a field grid. |
 | **Operations** | Installed control packs: the manifest, the parameters this firm supplied, and the FloMorphic flows each one bound. |
 | **Views** | A saved view — a named tag filter over any of the tables above, which the sidebar carries as its own entry. |
 
-The three pipeline levels are **optional, not a sequence**. A control decides where a row lands: raw
-data usually arrives on Intake, a later process turns it into an Exception when it concludes
-something worth tracking, and an Exception that needs remediating becomes a Case. But a control may
-write straight to Exceptions or Cases. Nothing forces the order — and the seam between *what was
-collected* and *what was judged to matter* stays visible, which is precisely the seam a supervisor
-interrogates.
+The promotion is **optional, not a sequence**. A control decides where a row lands: data usually
+arrives on Records and a control promotes the ones that need remediating, but a control may write
+straight to Cases, or leave everything on Records. Nothing forces the order — and the seam between
+*what was collected* and *what was judged to matter* stays visible, which is precisely the seam a
+supervisor interrogates.
 
-Two pages should be quiet. **Intake** and the evidence store are insurance: their value is inversely
-proportional to how often anyone opens them. Nobody reads Intake on a good day; it exists so that on
-a bad day you can show exactly what the control saw.
+A third level used to sit between them — **Exceptions**, for what a control had concluded but nobody
+had validated. It is gone, and its removal is worth understanding, because it is the same argument
+as the tagging rule below. "Exception" is one organization's word for one organization's
+intermediate step; building it into the schema asserted that every firm draws its pipeline the same
+way, and they do not. A firm that works that way now defines the term in its own vocabulary, stamps
+it on a record, and names a saved View for it — and the seam is still visible, because the stamp
+says who concluded what and when. A firm that does not work that way never sees the level.
+
+What a record carries beyond its payload is the **base index**: the entity it is about, the period
+it belongs to (which is not when it arrived — a Q3 return delivered in November is still Q3 data),
+the batch it was delivered in, the producer's own id, a dedup fingerprint, and one score. Those are
+the columns every question in this domain starts from, which is why they are columns and not tags.
+
+Two pages should be quiet. **Records** and the evidence store are insurance: their value is
+inversely proportional to how often anyone opens them. Nobody reads Records on a good day; it exists
+so that on a bad day you can show exactly what the control saw.
 
 Rows are **tagged rather than typed**. Rather than a table per case kind, every row carries tags and
 a saved view is a tag filter over them. A new class of obligation needs no schema change — a new
 regime is a label and a view, not a database migration.
 
 A **dedup key chosen by the control** is how a nightly test recognises a repeat instead of
-accumulating three hundred and sixty-five copies of one exception. The producer decides what counts
+accumulating three hundred and sixty-five copies of one finding. The producer decides what counts
 as the same thing again — control plus obligation plus entity plus period, typically.
 
 Over all of it sits a **full chart and dashboard builder**. Compliance posture is not a fixed set of
@@ -288,7 +299,7 @@ SurfStat ships as a **single container image** — and behind it, one Postgres.
 | Component | Role |
 | --- | --- |
 | **Go backend API** | The service the panel talks to, and the bridge to FloMorphic. |
-| **Vue web app** | The panel: intake, exceptions, cases, the activity log, packages, access. Three languages, left-to-right and right-to-left. |
+| **Vue web app** | The panel: records, cases, the activity log, packages, access. Three languages, left-to-right and right-to-left. |
 | **Dashboard builder** | A full chart and dashboard builder over the pipeline tables. |
 | **nginx** | Front door, tying the web app, API, and dashboards behind one origin. |
 | **PostgreSQL** | One database, shared by the dashboards and the backend API. |
@@ -336,7 +347,7 @@ origin:
 ```
 
 - **One PostgreSQL** holds both the `surfstat` database (the backend's charts,
-  dashboards, settings, intake/cases) and Superset's `superset` metadata database
+  dashboards, settings, records/cases) and Superset's `superset` metadata database
   — Superset's metadata is Postgres, never sqlite.
 - **No Redis, no Celery.** Superset is a synchronous BI engine here; its caches
   are a filesystem cache on the data volume. The async-only features (async SQL
@@ -370,19 +381,24 @@ panel onto the existing base, so it doesn't recompile Superset.
 A walk through the panel. The rows and the control runs below are a demo
 environment — the data is made up, the screens are not.
 
-> Screenshots are being retaken for the regulatory vocabulary; several below
-> still carry the labels from the product SurfStat was forked from.
+> Screenshots are stale and are being retaken. Several still carry the labels
+> from the product SurfStat was forked from, the sidebar still shows an
+> Exceptions entry that no longer exists, and the record page has since been
+> rebuilt around the classification rail and the journey — so the shots below
+> show the old JSON-first layout rather than the current one.
 
-**Intake — the un-triaged inbox.** Rows as they land, each carrying where its data
-came from (`source`), which process produced it (`origin`) and the evidence it
-brought with it. A control routes each one: *pending*, *promoted*, *held* or
-*dropped* — and a promoted row links to what it became.
+**Records — the raw side.** Rows as they land, each carrying where its data came
+from (`source`), which process produced it (`origin`), who it is about (`entity`),
+which period it belongs to (`period`) and the evidence it brought with it. A
+control routes each one: *pending*, *promoted*, *held* or *dropped* — and a
+promoted row links to the case it became.
 
-![Intake](images/intake.png)
+![Records](images/intake.png)
 
-**Cases.** The main table: what needs validating, fixing or acting on. Every row is
-tagged rather than typed, so a saved view is just a named tag filter — the four in
-the sidebar are exactly that.
+**Cases.** The worked side: what needs validating, fixing or acting on, with an
+owner and a due date. Every row is tagged rather than typed, so a saved view is
+just a named tag filter — the ones in the sidebar are exactly that, and a firm's
+own intermediate level is one of them.
 
 ![Cases](images/cases.png)
 
@@ -407,7 +423,7 @@ through here — as a dry run first.
 ![Operations](images/operations.png)
 
 **Dashboards.** Charts built on the pipeline tables themselves and arranged on a
-drag/resize grid — rendered natively, no iframe. Coverage by regime, exceptions by
+drag/resize grid — rendered natively, no iframe. Coverage by regime, findings by
 entity, ageing, testing throughput.
 
 ![Dashboards](images/dashboards.png)
