@@ -1,7 +1,7 @@
 <#
     SurfStat one-liner installer for Windows.
 
-      irm https://raw.githubusercontent.com/SurfStat/getting-started/main/install.ps1 | iex
+      irm https://raw.githubusercontent.com/SurfStatlab/getting-started/main/install.ps1 | iex
 
     SurfStat runs as Docker containers — and so does the FloMorphic instance behind
     it — and Docker on Windows means Docker Desktop on the WSL 2 backend.
@@ -38,13 +38,13 @@
       -NoInstall           check and report only; never install WSL or Docker Desktop
       -Help                print this header
 
-      & ([scriptblock]::Create((irm https://raw.githubusercontent.com/SurfStat/getting-started/main/install.ps1))) -Yes
+      & ([scriptblock]::Create((irm https://raw.githubusercontent.com/SurfStatlab/getting-started/main/install.ps1))) -Yes
 
     Everything install.sh understands (SURFSTAT_PORT, SUPERSET_PORT, FLOMORPHIC_MODE, ADMIN_PASS, EULA_ACCEPT, ...) is set as a normal PowerShell
     env var before running this script and is forwarded into the distro:
 
       $env:ASSUME_YES = '1'
-      irm https://raw.githubusercontent.com/SurfStat/getting-started/main/install.ps1 | iex
+      irm https://raw.githubusercontent.com/SurfStatlab/getting-started/main/install.ps1 | iex
 
     Docker Desktop is Docker Inc.'s product under its own licence (free for personal
     use, small businesses and education; a paid subscription for larger companies —
@@ -64,7 +64,7 @@ param(
 # ── product config — the only block that differs between the three installers ──
 $PRODUCT        = 'SurfStat'
 $TAGLINE        = 'panel + API + Superset/Postgres in one image, on the FloMorphic runtime'
-$REPO_SLUG      = 'SurfStat/getting-started'
+$REPO_SLUG      = 'SurfStatlab/getting-started'
 $INSTALLER_SH   = 'install.sh'
 $DEFAULT_SUBDIR = 'surfstat'               # install dir created in the distro's home
 $STACK_SUBDIR   = 'surfstat'               # compose stack install.sh writes under it

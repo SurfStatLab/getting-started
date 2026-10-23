@@ -2,7 +2,7 @@
 #
 # SurfStat one-liner installer.
 #
-#   curl -fsSL https://raw.githubusercontent.com/SurfStat/getting-started/main/install.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/SurfStatlab/getting-started/main/install.sh | bash
 #
 # Stands up SurfStat — the panel, its API and a built-in Superset/Postgres — from a
 # single published image (mehdishokohi/surfstat). SurfStat runs as a FloMorphic
@@ -78,7 +78,7 @@ SUPERSET_SECRET_KEY="${SUPERSET_SECRET_KEY:-}"
 SURFSTAT_APP_SECRET="${SURFSTAT_APP_SECRET:-}"
 SURFSTAT_DB_PASS="${SURFSTAT_DB_PASS:-}"
 LOAD_EXAMPLES="${LOAD_EXAMPLES:-false}"
-REPO_RAW="${REPO_RAW:-https://raw.githubusercontent.com/SurfStat/getting-started}"
+REPO_RAW="${REPO_RAW:-https://raw.githubusercontent.com/SurfStatlab/getting-started}"
 REPO_REF="${REPO_REF:-main}"
 FLOMORPHIC_INSTALLER="${FLOMORPHIC_INSTALLER:-https://raw.githubusercontent.com/FloMorphic/getting-started/main/install.sh}"
 ASSUME_YES="${ASSUME_YES:-0}"
@@ -90,7 +90,7 @@ for arg in "$@"; do
     --yes|-y) ASSUME_YES=1 ;;
     -h|--help)
       if [ -f "${BASH_SOURCE[0]:-}" ]; then sed -n '3,58p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
-      else printf 'see https://github.com/SurfStat/getting-started#install\n'; fi
+      else printf 'see https://github.com/SurfStatlab/getting-started#install\n'; fi
       exit 0 ;;
     *) printf 'unknown option: %s\n' "$arg" >&2; exit 2 ;;
   esac
@@ -232,7 +232,7 @@ if ! command -v docker >/dev/null 2>&1; then
     Windows PowerShell, run the Windows installer instead — it installs WSL and
     Docker Desktop if needed, turns on WSL integration, then runs this script:
 
-      irm https://raw.githubusercontent.com/SurfStat/getting-started/main/install.ps1 | iex
+      irm https://raw.githubusercontent.com/SurfStatlab/getting-started/main/install.ps1 | iex
 
     Already have Docker Desktop? Enable it for this distro:
     Docker Desktop -> Settings -> Resources -> WSL integration -> ${WSL_DISTRO_NAME:-this distro}"

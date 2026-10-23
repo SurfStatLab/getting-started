@@ -26,7 +26,7 @@ plugin), offers to install one if there isn't, wires in its shared secret, then
 pulls and starts the SurfStat image:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/SurfStat/getting-started/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/SurfStatlab/getting-started/main/install.sh | bash
 ```
 
 or, from a clone of this repo:
@@ -84,7 +84,7 @@ environment it runs in. [`install.ps1`](./install.ps1) is that part. Run it from
 normal PowerShell:
 
 ```powershell
-irm https://raw.githubusercontent.com/SurfStat/getting-started/main/install.ps1 | iex
+irm https://raw.githubusercontent.com/SurfStatlab/getting-started/main/install.ps1 | iex
 ```
 
 It is not a port of `install.sh` — it is the step before it. It checks the host,
@@ -119,14 +119,14 @@ makes the whole thing unattended:
 
 ```powershell
 $env:FLOMORPHIC_MODE = 'new'; $env:ASSUME_YES = '1'
-irm https://raw.githubusercontent.com/SurfStat/getting-started/main/install.ps1 | iex
+irm https://raw.githubusercontent.com/SurfStatlab/getting-started/main/install.ps1 | iex
 ```
 
 To pass parameters (`-Distro`, `-InstallDir`, `-Ref`, `-NoInstall` to check without
 installing), use the scriptblock form — a bare `irm | iex` cannot take arguments:
 
 ```powershell
-& ([scriptblock]::Create((irm https://raw.githubusercontent.com/SurfStat/getting-started/main/install.ps1))) -Yes -Distro Ubuntu
+& ([scriptblock]::Create((irm https://raw.githubusercontent.com/SurfStatlab/getting-started/main/install.ps1))) -Yes -Distro Ubuntu
 ```
 
 > Docker Desktop is Docker Inc.'s product under
