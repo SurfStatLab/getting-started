@@ -28,10 +28,23 @@ SURFSTAT_DB_NAME="${SURFSTAT_DB_NAME:-surfstat}"
 export PORT="${SURFSTAT_API_PORT:-8091}"
 export DATABASE_URL="postgres://${SURFSTAT_DB_USER}:${SURFSTAT_DB_PASS}@127.0.0.1:5432/${SURFSTAT_DB_NAME}?sslmode=disable"
 export APP_SECRET_KEY="${SURFSTAT_APP_SECRET:-dev-insecure-change-me}"
-# The panel is same-origin (served by the same nginx as /api), so CORS is not
-# needed in the default single-origin setup; default to permissive and let an
-# operator pin it when the panel is served from a different origin.
-export CORS_ORIGINS="${SURFSTAT_CORS_ORIGINS:-*}"
+# The panel is same-origin (served by the same nginx as /api), so the browser
+# makes no cross-origin request and CORS plays no part in the default setup. It
+# matters only when the panel is served from somewhere else (a dev front, or a
+# proxy on another host) — then an operator names that origin.
+#
+# "*" is not a usable value here: the session is an HttpOnly cookie, so the API
+# sends Access-Control-Allow-Credentials, which the CORS spec forbids combining
+# with a wildcard, and surfstat-api refuses it at boot. A leftover "*" is dropped
+# with a warning rather than crash-looping the appliance over a setting that the
+# default single-origin deployment never uses.
+if [ "${SURFSTAT_CORS_ORIGINS:-}" = "*" ]; then
+  echo "[surfstat-api] ignoring SURFSTAT_CORS_ORIGINS=*: a cookie session cannot use a wildcard origin, and the panel is same-origin anyway. To allow a cross-origin front, name its origin instead."
+  SURFSTAT_CORS_ORIGINS=""
+fi
+if [ -n "${SURFSTAT_CORS_ORIGINS:-}" ]; then
+  export CORS_ORIGINS="$SURFSTAT_CORS_ORIGINS"
+fi
 
 # Built-in Superset, reached in-container over loopback. The admin here is the
 # very same admin the base bootstrap created, so the backend self-configures the

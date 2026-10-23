@@ -53,6 +53,13 @@ services:
       SURFSTAT_APP_SECRET: ${SURFSTAT_APP_SECRET:?set SURFSTAT_APP_SECRET in .env}
       # Password for the internal `surfstat` Postgres role (created on first boot).
       SURFSTAT_DB_PASS: ${SURFSTAT_DB_PASS:-surfstat}
+      # Browser origins allowed to call the API. The panel and /api share one
+      # origin (the same nginx), so nothing cross-origin happens by default and
+      # this stays empty. Name an origin only when the panel is served from
+      # somewhere else, e.g. a dev front: http://localhost:5173 (comma-separated
+      # for several). "*" cannot work — the session is a cookie, so the API sends
+      # Access-Control-Allow-Credentials, which browsers reject with a wildcard.
+      SURFSTAT_CORS_ORIGINS: ${SURFSTAT_CORS_ORIGINS:-}
 
       # ── Access control ───────────────────────────────────────────────────
       # The first administrator, created ONLY when the users table is empty.
